@@ -26,7 +26,11 @@ Zusätzlich muss ein OpenAI-API-Schlüssel vorhanden und als Umgebungsvariable g
 ```bash
 export OPENAI_API_KEY='dein_api_schluessel'
 ```
+Alternativ kann im Programmverzeichnis eine Datei mit dem Dateinamen ".env" angelegt und folgende Zeile hinzugefügt werden:
 
+```bash
+OPENAI_API_KEY='dein_api_schluessel'
+```
 Unter Windows kann der API-Key so gesetzt werden:
 
 ```powershell
