@@ -14,9 +14,33 @@ from watchdog.events import FileSystemEventHandler
 from openai import OpenAI, APIError
 from concurrent.futures import ThreadPoolExecutor
 
-# --- Initialize Session State (early for log_messages) ---
-if 'log_messages' not in st.session_state:
+# --- Initialize Session State Variables (Earliest Point) ---
+# This block ensures all session state keys are initialized before any other code
+# might try to access them, especially logging or UI rendering.
+
+if "log_messages" not in st.session_state:
     st.session_state.log_messages = []
+if "processed_files" not in st.session_state:
+    st.session_state.processed_files = []
+if "monitoring_active" not in st.session_state:
+    st.session_state.monitoring_active = False
+if "observer" not in st.session_state:
+    st.session_state.observer = None
+if "file_event_handler" not in st.session_state:
+    st.session_state.file_event_handler = None
+if "monitor_thread" not in st.session_state:
+    st.session_state.monitor_thread = None
+if "openai_api_key" not in st.session_state:
+    st.session_state.openai_api_key = os.getenv("OPENAI_API_KEY", "")
+if "input_dir" not in st.session_state:
+    st.session_state.input_dir = "C:/tmp/PDF_Input" # Default, will be updated by load_config
+if "output_dir" not in st.session_state:
+    st.session_state.output_dir = "C:/tmp/PDF_Processed" # Default
+if "openai_model" not in st.session_state:
+    st.session_state.openai_model = "gpt-4o-mini" # Default
+if "config_loaded" not in st.session_state: # To ensure load_config runs once to update above defaults
+    st.session_state.config_loaded = False
+
 
 # --- Custom Streamlit Logging Handler ---
 class StreamlitLogHandler(logging.Handler):
@@ -26,68 +50,73 @@ class StreamlitLogHandler(logging.Handler):
 
     def emit(self, record):
         log_entry = self.format(record)
+        # Ensure log_messages list exists, though it should by now
+        if "log_messages" not in st.session_state:
+            st.session_state.log_messages = []
         st.session_state.log_messages.append(log_entry)
-        # Keep only the last max_messages
         st.session_state.log_messages = st.session_state.log_messages[-self.max_messages:]
-        # Consider if a rerun is needed here for live updates, might be too frequent.
-        # For now, logs update on next interaction or periodic rerun.
 
 # --- Logging Configuration ---
-# Configure logging once globally.
-# Check if a StreamlitLogHandler instance is already added to avoid duplicates on reruns.
 root_logger = logging.getLogger()
 if not any(isinstance(h, StreamlitLogHandler) for h in root_logger.handlers):
-    # Set root logger level (can be INFO, DEBUG, etc.)
     root_logger.setLevel(logging.INFO)
-
-    # Basic console handler (optional, good for dev)
-    if not root_logger.handlers: # Add console handler only if no handlers exist at all
+    if not root_logger.handlers:
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         root_logger.addHandler(console_handler)
-
-    # Streamlit UI handler
     streamlit_handler = StreamlitLogHandler()
     streamlit_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
     root_logger.addHandler(streamlit_handler)
-    logging.info("StreamlitLogHandler added to root logger.")
+    logging.info("StreamlitLogHandler added and logging configured.")
 
 
 # --- Configuration Handling ---
 CONFIG_FILE = "config.json"
 
 def load_config():
-    defaults = {
-        "input_dir": "C:/tmp/PDF_Input",
-        "output_dir": "C:/tmp/PDF_Processed",
-        "model": "gpt-4o-mini"
+    # Defaults are already in session_state, here we primarily load from file if it exists
+    # And ensure the loaded config updates session_state
+    defaults_from_file_load = { # These are the keys expected from the file
+        "input_dir": st.session_state.input_dir, # Use current session_state as initial default
+        "output_dir": st.session_state.output_dir,
+        "model": st.session_state.openai_model
     }
+    loaded_config = defaults_from_file_load.copy()
+
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r') as f:
-                config = json.load(f)
-                for key, value in defaults.items():
-                    if key not in config:
-                        config[key] = value
-                return config
+                config_from_file = json.load(f)
+            # Update loaded_config with values from file, ensuring all keys are present
+            for key in defaults_from_file_load:
+                if key in config_from_file:
+                    loaded_config[key] = config_from_file[key]
+            logging.info(f"Configuration loaded from {CONFIG_FILE}")
         except (IOError, json.JSONDecodeError) as e:
-            st.warning(f"Error loading config file: {e}. Using default settings.")
-            logging.error(f"Config file error: {e}") # Log this error
-            return defaults
-    return defaults
+            st.warning(f"Error loading config file '{CONFIG_FILE}': {e}. Using current session defaults or initial defaults.")
+            logging.error(f"Config file error: {e}")
+    else:
+        logging.info(f"'{CONFIG_FILE}' not found. Using current session defaults or initial defaults.")
+
+    # Update session_state with the determined config (either from file or initial defaults)
+    st.session_state.input_dir = loaded_config["input_dir"]
+    st.session_state.output_dir = loaded_config["output_dir"]
+    st.session_state.openai_model = loaded_config["model"]
+    return loaded_config # Return a dict, though session_state is the primary store now
+
 
 def save_config(config_dict):
     try:
         with open(CONFIG_FILE, 'w') as f:
             json.dump(config_dict, f, indent=4)
-        logging.info("Configuration saved successfully.") # Log successful save
+        logging.info("Configuration saved successfully to config.json.")
         return True
     except IOError as e:
         st.error(f"Error saving config file: {e}")
-        logging.error(f"Error saving config: {e}") # Log this error
+        logging.error(f"Error saving config: {e}")
         return False
 
-# --- Helper Functions ---
+# --- Helper Functions & FileHandler Class (content remains the same as previous version) ---
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode("utf-8")
@@ -103,7 +132,6 @@ def store_image(image_bytes: bytes) -> str:
         logging.error(f"Error storing image temporarily: {e}")
         return ""
 
-# --- FileHandler Class ---
 class FileHandler(FileSystemEventHandler):
     def __init__(self, input_dir: str, output_dir: str, model_name: str, openai_api_key: str, status_update_callback: callable):
         self.input_dir = input_dir
@@ -118,7 +146,7 @@ class FileHandler(FileSystemEventHandler):
             self.openai_client = None
         os.makedirs(output_dir, exist_ok=True)
         self.executor = ThreadPoolExecutor(max_workers=4)
-        logging.info("FileHandler initialized.") # Test log
+        logging.info("FileHandler initialized.")
 
     def on_created(self, event):
         if event.is_directory:
@@ -132,7 +160,6 @@ class FileHandler(FileSystemEventHandler):
         else:
             logging.debug(f"Non-PDF file event ignored: {event.src_path}")
 
-
     def process_pdf(self, pdf_path: str):
         original_filename = os.path.basename(pdf_path)
         logging.info(f"Processing PDF: {original_filename}")
@@ -144,7 +171,6 @@ class FileHandler(FileSystemEventHandler):
             return
 
         try:
-            # Test log
             logging.debug(f"Attempting to open PDF: {pdf_path}")
             with fitz.open(pdf_path) as doc:
                 first_page = doc.load_page(0)
@@ -191,17 +217,14 @@ class FileHandler(FileSystemEventHandler):
                     self.status_update_callback(original_filename, "", "No usable image found")
                     vision_result = "NO_IMAGE_FOUND"
 
-            # Consolidate status updates for vision part
             if vision_result in ["NO_VISION_DATA", "IMAGE_STORE_FAILED", "NO_IMAGE_FOUND"]:
                  self.status_update_callback(original_filename, "", f"Processing issue: {vision_result}")
             elif vision_result in ["Vision Analysis Failed", "Vision Analysis Failed due to API Error"]:
-                # Status already updated by process_image_with_openai
                 pass
 
-            # Generate filename based on vision result OR page text if vision failed/not applicable
             content_for_naming = vision_result if vision_result not in ["NO_VISION_DATA", "IMAGE_STORE_FAILED", "NO_IMAGE_FOUND", "Vision Analysis Failed", "Vision Analysis Failed due to API Error"] else page_text
-            if not content_for_naming: # If page_text was also empty
-                content_for_naming = "No content available" # Ensure generate_filename gets some input
+            if not content_for_naming:
+                content_for_naming = "No content available"
                 logging.warning(f"No content (vision or text) available for naming PDF {original_filename}")
 
             filename = self.generate_filename_with_openai(content_for_naming)
@@ -222,7 +245,7 @@ class FileHandler(FileSystemEventHandler):
                 counter += 1
 
             if len(new_name) > 240:
-                base_name_truncated = base_name[:240 - 4] # .pdf is 4 chars
+                base_name_truncated = base_name[:240 - 4]
                 new_name = base_name_truncated + ".pdf"
                 new_path = os.path.normpath(os.path.join(self.output_dir, new_name))
                 counter = 1
@@ -236,14 +259,11 @@ class FileHandler(FileSystemEventHandler):
             self.status_update_callback(original_filename, os.path.basename(new_path), "Success")
 
         except Exception as e:
-            logging.error(f"Critical error processing PDF {pdf_path}: {e}", exc_info=True) # Log traceback
+            logging.error(f"Critical error processing PDF {pdf_path}: {e}", exc_info=True)
             self.status_update_callback(original_filename, "", f"Error: {str(e)}")
-
 
     def process_image_with_openai(self, image_path: str, page_text: str) -> str:
         text_prompt = "Extrahiere den Text aus dem Bild und analysiere den Inhalt. Ziel ist es, relevante Informationen zu identifizieren, um einen Dateinamen zu generieren. Referenznummern, Betreff, Absender, Empfänger, Datumsangaben sind besonders wichtig. Beispiel: YYYY-MM-DD_FIRMA_DOKUMENTENTYP (z.B. Rechnung)_Betreff_ID"
-        # original_filename is not directly available here, status updates use image_path's basename
-        # This means status table might show image name instead of PDF name for this specific error
         base_image_filename = os.path.basename(image_path)
         try:
             base64_image = encode_image(image_path)
@@ -309,27 +329,12 @@ class FileHandler(FileSystemEventHandler):
 st.set_page_config(layout="wide")
 st.title("📄 PDF Renamer Bot")
 
-# Initialize session state variables (idempotent)
-default_values = {
-    'config_loaded': False,
-    'monitoring_active': False,
-    'processed_files': [],
-    'observer': None,
-    'file_event_handler': None,
-    'monitor_thread': None,
-    'openai_api_key': os.getenv("OPENAI_API_KEY", "")
-}
-for key, value in default_values.items():
-    if key not in st.session_state:
-        st.session_state[key] = value
-
+# Load configuration from file into session_state ONCE if not already marked as loaded.
+# This ensures that defaults set at the top are updated from config.json if it exists.
 if not st.session_state.config_loaded:
-    config = load_config()
-    st.session_state.input_dir = config.get("input_dir", "C:/tmp/PDF_Input")
-    st.session_state.output_dir = config.get("output_dir", "C:/tmp/PDF_Processed")
-    st.session_state.openai_model = config.get("model", "gpt-4o-mini")
+    load_config() # This function now updates session_state directly
     st.session_state.config_loaded = True
-    logging.info("Initial configuration loaded into session state.")
+    logging.info("Initial configuration processed from file (if exists) or defaults.")
 
 
 def update_status_display(original_name, new_name, status_message):
@@ -347,7 +352,6 @@ def update_status_display(original_name, new_name, status_message):
             "Original Filename": original_name, "New Filename": new_name,
             "Status": status_message, "Timestamp": timestamp
         })
-    # Consider st.experimental_rerun() if immediate UI update is critical and safe from threads
 
 def start_monitoring_service(input_dir, output_dir, model_name, openai_api_key_val):
     logging.info(f"Attempting to start monitoring service: Input='{input_dir}', Output='{output_dir}', Model='{model_name}'")
@@ -359,14 +363,12 @@ def start_monitoring_service(input_dir, output_dir, model_name, openai_api_key_v
         st.session_state.observer.schedule(st.session_state.file_event_handler, input_dir, recursive=False)
         st.session_state.observer.start()
         logging.info(f"Observer started, watching directory: {input_dir}")
-        # Test log
-        logging.warning("This is a test warning log from monitoring service start.")
+        logging.warning("This is a test warning log from monitoring service start.") # Test log
         while st.session_state.get("monitoring_active", False):
             time.sleep(1)
     except Exception as e:
         logging.error(f"FATAL: Exception in monitoring service startup or loop: {e}", exc_info=True)
-        st.session_state.monitoring_active = False # Ensure it's marked as stopped
-        # Optionally, update some global error display in Streamlit UI if possible from thread
+        st.session_state.monitoring_active = False
     finally:
         logging.info("Monitoring service shutdown sequence initiated.")
         if st.session_state.observer and st.session_state.observer.is_alive():
@@ -380,12 +382,9 @@ def start_monitoring_service(input_dir, output_dir, model_name, openai_api_key_v
         st.session_state.file_event_handler = None
         logging.info("Monitoring service fully shut down.")
 
-
 # --- Sidebar UI ---
 with st.sidebar:
     st.header("🔑 API Configuration")
-    # API Key Handling
-    # Value comes from session_state, which is pre-filled by env var or remains empty for user input
     st.session_state.openai_api_key = st.text_input(
         "OpenAI API Key",
         type="password",
@@ -398,23 +397,25 @@ with st.sidebar:
     elif not st.session_state.openai_api_key:
          st.warning("OpenAI API Key is required.")
 
-
     st.header("⚙️ Bot Settings")
     is_monitoring = st.session_state.monitoring_active
+    # Use st.session_state values directly for text_input values
     st.session_state.input_dir = st.text_input("Input PDF Folder", value=st.session_state.input_dir, disabled=is_monitoring)
     st.session_state.output_dir = st.text_input("Processed PDF Folder", value=st.session_state.output_dir, disabled=is_monitoring)
     st.session_state.openai_model = st.text_input("OpenAI Model", value=st.session_state.openai_model, disabled=is_monitoring)
 
     if st.button("Save Settings", disabled=is_monitoring):
-        current_config = {
-            "input_dir": st.session_state.input_dir, "output_dir": st.session_state.output_dir,
+        # Config to save should come from current session_state values
+        current_config_to_save = {
+            "input_dir": st.session_state.input_dir,
+            "output_dir": st.session_state.output_dir,
             "model": st.session_state.openai_model
         }
-        if save_config(current_config): st.success("Settings saved!")
+        if save_config(current_config_to_save): st.success("Settings saved!")
         else: st.error("Failed to save settings.")
 
 # --- Main Area UI ---
-col1, col2 = st.columns([0.7, 0.3]) # Adjust column width ratios
+col1, col2 = st.columns([0.7, 0.3])
 
 with col1:
     st.subheader("🚀 Control Panel")
@@ -423,13 +424,13 @@ with col1:
             logging.info("Stop Monitoring button clicked.")
             st.session_state.monitoring_active = False
             if st.session_state.monitor_thread and st.session_state.monitor_thread.is_alive():
-                st.session_state.monitor_thread.join(timeout=10) # Increased timeout
+                st.session_state.monitor_thread.join(timeout=10)
                 if st.session_state.monitor_thread.is_alive():
                     logging.warning("Monitoring thread did not terminate in time.")
             st.session_state.monitor_thread = None
             st.info("Monitoring service stopping... UI will update shortly.")
-            time.sleep(1) # Allow time for thread to fully stop and UI to reflect
-            st.experimental_rerun()
+            time.sleep(1)
+            st.rerun()
     else:
         if st.button("Start Monitoring"):
             logging.info("Start Monitoring button clicked.")
@@ -443,8 +444,7 @@ with col1:
                 st.session_state.monitoring_active = True
                 st.session_state.processed_files = []
                 logging.info("Starting monitoring thread...")
-                # Test log
-                logging.error("This is a test error log from Start Monitoring.")
+                logging.error("This is a test error log from Start Monitoring.") # Test log
                 st.session_state.monitor_thread = threading.Thread(
                     target=start_monitoring_service,
                     args=(st.session_state.input_dir, st.session_state.output_dir,
@@ -453,7 +453,7 @@ with col1:
                 )
                 st.session_state.monitor_thread.start()
                 st.success(f"Monitoring started for '{st.session_state.input_dir}'.")
-                st.experimental_rerun()
+                st.rerun()
 with col2:
     st.subheader("ℹ️ Bot Status")
     if st.session_state.monitoring_active:
@@ -467,7 +467,6 @@ if st.session_state.processed_files:
 else:
     st.info("No files processed yet or monitoring not active.")
 
-# UI for Log Messages
 with st.expander("📄 View Detailed Logs", expanded=False):
     if st.session_state.log_messages:
         log_display = "\n".join(st.session_state.log_messages)
@@ -477,8 +476,4 @@ with st.expander("📄 View Detailed Logs", expanded=False):
     if st.button("Clear Logs"):
         st.session_state.log_messages = []
         logging.info("UI logs cleared by user.")
-        st.experimental_rerun()
-
-
-# For debugging session state (optional)
-# st.expander("Session State Debug").write(st.session_state)
+        st.rerun()
