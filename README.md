@@ -82,54 +82,63 @@ Code der Anwendung
 import os
 import re
 import shutil
-import fitz  # PyMuPDF
+import base64
 import logging
 import time
-import tempfile
-import base64
+from concurrent.futures import ThreadPoolExecutor
+
+import fitz  # PyMuPDF
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from openai import OpenAI
-from concurrent.futures import ThreadPoolExecutor
 
-# OpenAI-Client initialisieren
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-# Logging konfigurieren für Debugging und Fehlerverfolgung
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+def convert_pdf_to_images(pdf_path):
+    images = []
+    with fitz.open(pdf_path) as doc:
+        for page in doc:
+            pix = page.get_pixmap()
+            img_bytes = pix.tobytes("jpeg")
+            images.append(base64.b64encode(img_bytes).decode("utf-8"))
+    return images
+
 
 class FileHandler(FileSystemEventHandler):
     def __init__(self, input_dir: str, output_dir: str):
-        """Initialisiert den Datei-Handler mit Eingabe- und Ausgabe-Verzeichnissen."""
         self.input_dir = input_dir
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
-        self.executor = ThreadPoolExecutor(max_workers=4)  # Parallele Verarbeitung von PDFs
-    
+        self.executor = ThreadPoolExecutor(max_workers=4)
+
     def on_created(self, event):
-        """Reagiert auf neue Dateien im überwachten Verzeichnis."""
         if event.is_directory:
             return
         if event.src_path.lower().endswith('.pdf'):
-            self.executor.submit(self.process_pdf, event.src_path)  # PDF-Verarbeitung im Hintergrund starten
-    
+            self.executor.submit(self.process_pdf, event.src_path)
+
     def process_pdf(self, pdf_path: str):
-        """Verarbeitet eine neue PDF-Datei und benennt sie um."""
         try:
-            with fitz.open(pdf_path) as doc:
-                text = doc[0].get_text()  # Extrahiere Text von der ersten Seite
-            filename = self.generate_filename_with_openai(text)  # Generiere neuen Dateinamen
+            images = convert_pdf_to_images(pdf_path)
+            filename = self.generate_filename_with_openai(images)
             new_path = os.path.join(self.output_dir, filename + ".pdf")
-            shutil.move(pdf_path, new_path)  # Datei ins Zielverzeichnis verschieben
-            logging.info(f"Datei umbenannt nach {new_path}")
+            shutil.move(pdf_path, new_path)
         except Exception as e:
             logging.error(f"Fehler: {e}")
-    
-    def generate_filename_with_openai(self, content: str) -> str:
-        """Generiert einen passenden Dateinamen basierend auf dem Inhalt der PDF."""
-        prompt = f"Erstelle einen passenden Dateinamen basierend auf: {content}"
+
+    def generate_filename_with_openai(self, images):
+        prompt = (
+            "Analysiere das folgende Dokument und erstelle einen Dateinamen im Format "
+            "YYYY-MM-DD_FIRMA_DOKUMENTENTYP_ID. Gib nur den Dateinamen ohne Endung zurück."
+        )
+        content = [{"type": "text", "text": prompt}]
+        for img in images:
+            data_uri = f"data:image/jpeg;base64,{img}"
+            content.append({"type": "image_url", "image_url": {"url": data_uri}})
         response = openai_client.chat.completions.create(
-            model="gpt-4.1-nano", messages=[{"role": "user", "content": prompt}], max_tokens=100
+            model="gpt-4.1-nano", messages=[{"role": "user", "content": content}], max_tokens=100
         )
         return response.choices[0].message.content.strip()
 
