@@ -6,60 +6,50 @@ Ein Python-Tool zur automatischen Umbenennung gescannter PDF-Dokumente. Es extra
 ## Einleitung
 
 Dieses Tutorial beschreibt die Nutzung einer Python-App, die gescannte Dokumente (PDFs) automatisch analysiert und sinnvoll benennt. Dabei werden Bilder und Textinhalte aus den PDFs extrahiert und mit OpenAI GPT-4.1-nano verarbeitet, um eine aussagekräftige Namensgebung zu generieren. Die App überwacht ein Eingangsverzeichnis und verarbeitet neue Dateien automatisch.
+=======
+KiSo_pdf-auto-renamer
+Ein Python-Tool zur automatischen Umbenennung gescannter PDF-Dokumente. Es extrahiert Text- und Bildinhalte, analysiert diese mit OpenAI GPT-4o mini und generiert strukturierte Dateinamen für eine effizientere Ablage. Ideal für Büros, Kanzleien und Unternehmen mit hohem Dokumentenaufkommen.
+
+Automatische PDF-Umbenennung mit KI – Ein praktisches Tutorial
+Einleitung
+Dieses Tutorial beschreibt die Nutzung einer Python-App, die gescannte Dokumente (PDFs) automatisch analysiert und sinnvoll benennt. Dabei werden Bilder und Textinhalte aus den PDFs extrahiert und mit OpenAI GPT-4o mini verarbeitet, um eine aussagekräftige Namensgebung zu generieren. Die App überwacht ein Eingangsverzeichnis und verarbeitet neue Dateien automatisch.
+
 
 Dies spart nicht nur wertvolle Zeit, sondern reduziert auch menschliche Fehler bei der Namensgebung und sorgt für eine einheitliche, strukturierte Ablage der Dokumente. Besonders für Unternehmen und Büros mit hohem Dokumentenaufkommen kann diese Automatisierung eine enorme Erleichterung sein. Manuelle Dateibenennungen sind oft fehleranfällig und können zu ineffizienten Arbeitsabläufen führen. Durch die Automatisierung entfällt die mühsame Suche nach Dokumenten mit unklaren Namen. Gerade in Umgebungen mit einem hohen Volumen an eingehenden Dokumenten, wie Kanzleien, medizinischen Einrichtungen oder Finanzabteilungen, bietet die App einen erheblichen Mehrwert.
 
-## Voraussetzungen
-
+Voraussetzungen
 Bevor die Anwendung genutzt werden kann, müssen einige Abhängigkeiten installiert werden. Dafür wird Python 3.x vorausgesetzt.
 
-### Installation der benötigten Pakete
-
+Installation der benötigten Pakete
 Die notwendigen Python-Bibliotheken können mit folgendem Befehl installiert werden:
 
-```bash
 pip install pymupdf watchdog openai
-```
-
 Zusätzlich muss ein OpenAI-API-Schlüssel vorhanden und als Umgebungsvariable gesetzt sein:
 
-```bash
 export OPENAI_API_KEY='dein_api_schluessel'
-```
 Alternativ kann im Programmverzeichnis eine Datei mit dem Dateinamen ".env" angelegt und folgende Zeile hinzugefügt werden:
 
-```bash
 OPENAI_API_KEY='dein_api_schluessel'
-```
 Unter Windows kann der API-Key so gesetzt werden:
 
-```powershell
 $env:OPENAI_API_KEY='dein_api_schluessel'
-```
-
 Falls noch nicht geschehen, sollte zudem ein Python-Interpreter installiert sein. Eine Überprüfung kann mit folgendem Befehl erfolgen:
 
-```bash
 python --version
-```
-
-## Verzeichnisstruktur
-
+Verzeichnisstruktur
 Die App erwartet zwei Verzeichnisse:
 
-- **Eingangsverzeichnis**: Hier werden gescannte PDFs abgelegt.
-- **Ausgabeverzeichnis**: Hier werden die umbenannten PDFs gespeichert.
-
+Eingangsverzeichnis: Hier werden gescannte PDFs abgelegt.
+Ausgabeverzeichnis: Hier werden die umbenannten PDFs gespeichert.
 Standardmäßig verwendet die App:
 
-- `C:/tmp/PDF_Input` als Eingangsverzeichnis
-- `C:/tmp/PDF_Processed` als Ausgabeverzeichnis
-
+C:/tmp/PDF_Input als Eingangsverzeichnis
+C:/tmp/PDF_Processed als Ausgabeverzeichnis
 Falls nötig, können diese Pfade im Code angepasst werden. Bei Netzwerklaufwerken oder Cloud-Speichern ist darauf zu achten, dass die App Schreibrechte besitzt.
 
-## Funktionsweise
-
+Funktionsweise
 Die App überwacht das Eingangsverzeichnis auf neue PDF-Dateien. Sobald eine neue Datei erkannt wird:
+
 
 1. Wird der Text der ersten Seite ausgelesen.
 2. Falls ein Bild vorhanden ist, wird es extrahiert und analysiert.
@@ -67,29 +57,28 @@ Die App überwacht das Eingangsverzeichnis auf neue PDF-Dateien. Sobald eine neu
 4. Die Datei wird ins Ausgabeverzeichnis mit dem neuen Namen verschoben.
 5. Falls ein Fehler auftritt, wird die Datei unter einem generischen Namen gespeichert.
 
+=======
+Wird der Text der ersten Seite ausgelesen.
+Falls ein Bild vorhanden ist, wird es extrahiert und analysiert.
+OpenAI GPT-4o mini wird befragt, um einen passenden Dateinamen zu generieren.
+Die Datei wird ins Ausgabeverzeichnis mit dem neuen Namen verschoben.
+Falls ein Fehler auftritt, wird die Datei unter einem generischen Namen gespeichert.
+
 Durch diese automatisierte Verarbeitung kann sichergestellt werden, dass alle Dokumente nach einem einheitlichen Schema benannt werden, was wiederum die Durchsuchbarkeit und Archivierung erleichtert.
 
-## Anwendung starten
-
+Anwendung starten
 Um die Anwendung zu starten, muss einfach das Python-Skript ausgeführt werden:
 
-```bash
 python script.py
-```
-
 Die App beginnt dann mit der Überwachung des Eingangsverzeichnisses und verarbeitet neue Dateien automatisch. Falls das Skript auf einem Server oder einer permanent laufenden Umgebung betrieben werden soll, kann es als Hintergrundprozess oder Dienst eingerichtet werden.
 
-### Automatischer Start unter Windows
+Automatischer Start unter Windows
+Falls die Anwendung beim Systemstart automatisch laufen soll, kann eine Verknüpfung zur script.py-Datei im Autostart-Ordner abgelegt oder ein Windows-Dienst eingerichtet werden.
 
-Falls die Anwendung beim Systemstart automatisch laufen soll, kann eine Verknüpfung zur `script.py`-Datei im Autostart-Ordner abgelegt oder ein Windows-Dienst eingerichtet werden.
+Automatischer Start unter Linux
+Unter Linux kann das Skript mit systemd als Dienst eingerichtet oder über cron geplant ausgeführt werden, um eine kontinuierliche Verarbeitung sicherzustellen.
 
-### Automatischer Start unter Linux
-
-Unter Linux kann das Skript mit `systemd` als Dienst eingerichtet oder über `cron` geplant ausgeführt werden, um eine kontinuierliche Verarbeitung sicherzustellen.
-
-## Code der Anwendung
-
-```python
+Code der Anwendung
 import os
 import re
 import shutil
@@ -159,10 +148,5 @@ try:
 except KeyboardInterrupt:
     observer.stop()
 observer.join()
-```
-
-## Fazit
-
+Fazit
 Diese App erleichtert das automatische Organisieren gescannter Dokumente, indem sie sinnvolle Dateinamen generiert. Sie lässt sich einfach installieren, nutzen und anpassen.
-
-
