@@ -1,9 +1,19 @@
+# KiSo_pdf-auto-renamer
+Ein Python-Tool zur automatischen Umbenennung gescannter PDF-Dokumente. Es extrahiert Text- und Bildinhalte, analysiert diese mit OpenAI GPT-4.1-nano und generiert strukturierte Dateinamen für eine effizientere Ablage. Ideal für Büros, Kanzleien und Unternehmen mit hohem Dokumentenaufkommen.
+
+# Automatische PDF-Umbenennung mit KI – Ein praktisches Tutorial&#x20;
+
+## Einleitung
+
+Dieses Tutorial beschreibt die Nutzung einer Python-App, die gescannte Dokumente (PDFs) automatisch analysiert und sinnvoll benennt. Dabei werden Bilder und Textinhalte aus den PDFs extrahiert und mit OpenAI GPT-4.1-nano verarbeitet, um eine aussagekräftige Namensgebung zu generieren. Die App überwacht ein Eingangsverzeichnis und verarbeitet neue Dateien automatisch.
+=======
 KiSo_pdf-auto-renamer
 Ein Python-Tool zur automatischen Umbenennung gescannter PDF-Dokumente. Es extrahiert Text- und Bildinhalte, analysiert diese mit OpenAI GPT-4o mini und generiert strukturierte Dateinamen für eine effizientere Ablage. Ideal für Büros, Kanzleien und Unternehmen mit hohem Dokumentenaufkommen.
 
 Automatische PDF-Umbenennung mit KI – Ein praktisches Tutorial
 Einleitung
 Dieses Tutorial beschreibt die Nutzung einer Python-App, die gescannte Dokumente (PDFs) automatisch analysiert und sinnvoll benennt. Dabei werden Bilder und Textinhalte aus den PDFs extrahiert und mit OpenAI GPT-4o mini verarbeitet, um eine aussagekräftige Namensgebung zu generieren. Die App überwacht ein Eingangsverzeichnis und verarbeitet neue Dateien automatisch.
+
 
 Dies spart nicht nur wertvolle Zeit, sondern reduziert auch menschliche Fehler bei der Namensgebung und sorgt für eine einheitliche, strukturierte Ablage der Dokumente. Besonders für Unternehmen und Büros mit hohem Dokumentenaufkommen kann diese Automatisierung eine enorme Erleichterung sein. Manuelle Dateibenennungen sind oft fehleranfällig und können zu ineffizienten Arbeitsabläufen führen. Durch die Automatisierung entfällt die mühsame Suche nach Dokumenten mit unklaren Namen. Gerade in Umgebungen mit einem hohen Volumen an eingehenden Dokumenten, wie Kanzleien, medizinischen Einrichtungen oder Finanzabteilungen, bietet die App einen erheblichen Mehrwert.
 
@@ -40,11 +50,20 @@ Falls nötig, können diese Pfade im Code angepasst werden. Bei Netzwerklaufwerk
 Funktionsweise
 Die App überwacht das Eingangsverzeichnis auf neue PDF-Dateien. Sobald eine neue Datei erkannt wird:
 
+
+1. Wird der Text der ersten Seite ausgelesen.
+2. Falls ein Bild vorhanden ist, wird es extrahiert und analysiert.
+3. OpenAI GPT-4.1-nano wird befragt, um einen passenden Dateinamen zu generieren.
+4. Die Datei wird ins Ausgabeverzeichnis mit dem neuen Namen verschoben.
+5. Falls ein Fehler auftritt, wird die Datei unter einem generischen Namen gespeichert.
+
+=======
 Wird der Text der ersten Seite ausgelesen.
 Falls ein Bild vorhanden ist, wird es extrahiert und analysiert.
 OpenAI GPT-4o mini wird befragt, um einen passenden Dateinamen zu generieren.
 Die Datei wird ins Ausgabeverzeichnis mit dem neuen Namen verschoben.
 Falls ein Fehler auftritt, wird die Datei unter einem generischen Namen gespeichert.
+
 Durch diese automatisierte Verarbeitung kann sichergestellt werden, dass alle Dokumente nach einem einheitlichen Schema benannt werden, was wiederum die Durchsuchbarkeit und Archivierung erleichtert.
 
 Anwendung starten
@@ -110,7 +129,7 @@ class FileHandler(FileSystemEventHandler):
         """Generiert einen passenden Dateinamen basierend auf dem Inhalt der PDF."""
         prompt = f"Erstelle einen passenden Dateinamen basierend auf: {content}"
         response = openai_client.chat.completions.create(
-            model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=100
+            model="gpt-4.1-nano", messages=[{"role": "user", "content": prompt}], max_tokens=100
         )
         return response.choices[0].message.content.strip()
 
