@@ -132,7 +132,7 @@ class FileHandler(FileSystemEventHandler):
             data_uri = f"data:image/jpeg;base64,{base64_image}"
             logging.info(f"Verarbeite Bild mit OpenAI, data URI Länge: {len(data_uri)}")
             response = openai_client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-nano",
                 messages=[
                     {
                         "role": "user",
@@ -167,19 +167,19 @@ class FileHandler(FileSystemEventHandler):
         )
         try:
             response = openai_client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-nano",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=100,
             )
             output_text = response.choices[0].message.content.strip()
-            logging.info("gpt-4o-mini Antwort:\n" + output_text)
+            logging.info("gpt-4.1-nano Antwort:\n" + output_text)
             output_text = re.sub(r'<[^>]+>', '', output_text).strip()
             file_name = output_text.splitlines()[0].strip()
             file_name = re.sub(r'\s+', '_', file_name)
             file_name = re.sub(r'[^\w\-]', '', file_name)
             return file_name[:70] if file_name else "UNKNOWN_DOC"
         except Exception as e:
-            logging.error(f"Fehler bei der gpt-4o-mini Verarbeitung: {e}")
+            logging.error(f"Fehler bei der gpt-4.1-nano Verarbeitung: {e}")
             return "UNKNOWN_DOC"
 
 def main():
