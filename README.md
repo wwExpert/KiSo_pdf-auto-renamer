@@ -23,13 +23,16 @@ Bevor die Anwendung genutzt werden kann, müssen einige Abhängigkeiten installi
 Installation der benötigten Pakete
 Die notwendigen Python-Bibliotheken können mit folgendem Befehl installiert werden:
 
-pip install pymupdf watchdog openai
-Zusätzlich muss ein OpenAI-API-Schlüssel vorhanden und als Umgebungsvariable gesetzt sein:
+pip install pymupdf watchdog openai python-dotenv
+Zusätzlich muss ein OpenAI-API-Schlüssel vorhanden sein. Am bequemsten werden alle Einstellungen in einer Datei namens `.env` hinterlegt:
 
-export OPENAI_API_KEY='dein_api_schluessel'
-Alternativ kann im Programmverzeichnis eine Datei mit dem Dateinamen ".env" angelegt und folgende Zeile hinzugefügt werden:
-
+```
 OPENAI_API_KEY='dein_api_schluessel'
+INPUT_DIR='C:/tmp/PDF_Input'
+OUTPUT_DIR='C:/tmp/PDF_Processed'
+OPENAI_MODEL='gpt-4.1-nano'
+```
+
 Unter Windows kann der API-Key so gesetzt werden:
 
 $env:OPENAI_API_KEY='dein_api_schluessel'
