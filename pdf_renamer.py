@@ -6,13 +6,17 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+from dotenv import load_dotenv
+
 import fitz  # PyMuPDF
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from openai import OpenAI
 
 
+load_dotenv()
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -78,7 +82,7 @@ class FileHandler(FileSystemEventHandler):
             content.append({"type": "image_url", "image_url": {"url": data_uri}})
         try:
             response = openai_client.chat.completions.create(
-                model="gpt-4.1-nano",
+                model=MODEL_NAME,
                 messages=[{"role": "user", "content": content}],
                 max_tokens=100,
             )
@@ -87,13 +91,13 @@ class FileHandler(FileSystemEventHandler):
             file_name = re.sub(r"[^\w\-]", "", file_name)
             return file_name[:70] if file_name else "UNKNOWN_DOC"
         except Exception as e:
-            logging.error(f"Fehler bei der gpt-4.1-nano Verarbeitung: {e}")
+            logging.error(f"Fehler bei der {MODEL_NAME} Verarbeitung: {e}")
             return "UNKNOWN_DOC"
 
 
 def main() -> None:
-    input_dir = "C:/tmp/PDF_Input"
-    output_dir = "C:/tmp/PDF_Processed"
+    input_dir = os.getenv("INPUT_DIR", "C:/tmp/PDF_Input")
+    output_dir = os.getenv("OUTPUT_DIR", "C:/tmp/PDF_Processed")
     handler = FileHandler(input_dir, output_dir)
     observer = Observer()
     observer.schedule(handler, input_dir, recursive=False)
