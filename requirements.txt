@@ -2,3 +2,5 @@ openai
 PyMuPDF
 watchdog
 python-dotenv
+streamlit
+pytest
