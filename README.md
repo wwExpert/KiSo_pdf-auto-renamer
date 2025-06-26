@@ -36,10 +36,10 @@ OPENAI_MODEL='gpt-4.1-nano'
 Starten Sie die Anwendung mit:
 
 ```bash
-python pdf_renamer.py
+streamlit run streamlit_app.py
 ```
 
-Das Skript überwacht anschließend das Eingangsverzeichnis und benennt neue PDFs selbstständig um.
+Die Anwendung überwacht das Eingangsverzeichnis und benennt sowohl bereits vorhandene als auch neue PDFs automatisch um. Eine kleine Weboberfläche zeigt den aktuellen Status an.
 
 ### Dauerbetrieb
 Für einen permanenten Einsatz lässt sich das Skript z. B. als systemd- oder Windows-Dienst starten oder in den Autostart legen.

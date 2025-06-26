@@ -33,11 +33,22 @@ def convert_pdf_to_images(pdf_path: str) -> list[str]:
 
 
 class FileHandler(FileSystemEventHandler):
-    def __init__(self, input_dir: str, output_dir: str) -> None:
+    def __init__(self, input_dir: str, output_dir: str, on_processed=None) -> None:
         self.input_dir = input_dir
         self.output_dir = output_dir
-        os.makedirs(output_dir, exist_ok=True)
+        self.on_processed = on_processed
+        os.makedirs(self.output_dir, exist_ok=True)
+        os.makedirs(self.input_dir, exist_ok=True)
         self.executor = ThreadPoolExecutor(max_workers=4)
+        self.process_existing_pdfs()
+
+    def process_existing_pdfs(self) -> None:
+        """Verarbeitet bereits vorhandene PDFs im Eingangsverzeichnis."""
+        for file_name in os.listdir(self.input_dir):
+            if file_name.lower().endswith(".pdf"):
+                path = os.path.join(self.input_dir, file_name)
+                logging.info(f"Verarbeite vorhandene Datei: {path}")
+                self.executor.submit(self.process_pdf, path)
 
     def on_created(self, event) -> None:
         if event.is_directory:
@@ -60,6 +71,8 @@ class FileHandler(FileSystemEventHandler):
                 counter += 1
             shutil.move(pdf_path, new_path)
             logging.info(f"Datei verschoben nach {new_path}")
+            if self.on_processed:
+                self.on_processed(new_path)
         except Exception as e:
             logging.error(f"Fehler beim Verarbeiten von {pdf_path}: {e}")
             fallback_name = f"Fehler_doc_{os.path.basename(pdf_path)}"
@@ -67,6 +80,8 @@ class FileHandler(FileSystemEventHandler):
             try:
                 shutil.move(pdf_path, fallback_path)
                 logging.info(f"Fallback-Name verwendet: {fallback_path}")
+                if self.on_processed:
+                    self.on_processed(fallback_path)
             except Exception as e2:
                 logging.critical(
                     f"Kritischer Fehler: Datei {pdf_path} konnte nicht verschoben werden - {e2}")
