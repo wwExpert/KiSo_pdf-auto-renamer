@@ -17,8 +17,26 @@ from openai import OpenAI
 load_dotenv()
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+
+def wait_for_file_ready(
+    path: str, timeout: float = 10.0, interval: float = 0.5
+) -> bool:
+    """Wait until a file is ready for reading."""
+    start = time.time()
+    while time.time() - start < timeout:
+        if os.path.exists(path):
+            try:
+                with open(path, "rb"):
+                    return True
+            except Exception:
+                time.sleep(interval)
+        else:
+            time.sleep(interval)
+    return False
 
 
 def convert_pdf_to_images(pdf_path: str) -> list[str]:
@@ -53,12 +71,14 @@ class FileHandler(FileSystemEventHandler):
     def on_created(self, event) -> None:
         if event.is_directory:
             return
-        if event.src_path.lower().endswith('.pdf'):
+        if event.src_path.lower().endswith(".pdf"):
             logging.info(f"Neue PDF erkannt: {event.src_path}")
             self.executor.submit(self.process_pdf, event.src_path)
 
     def process_pdf(self, pdf_path: str) -> None:
         try:
+            if not wait_for_file_ready(pdf_path):
+                raise FileNotFoundError(f"File {pdf_path} is not ready for processing.")
             images = convert_pdf_to_images(pdf_path)
             filename = self.generate_filename_with_openai(images)
             new_name = f"{filename}.pdf"
@@ -84,7 +104,8 @@ class FileHandler(FileSystemEventHandler):
                     self.on_processed(fallback_path)
             except Exception as e2:
                 logging.critical(
-                    f"Kritischer Fehler: Datei {pdf_path} konnte nicht verschoben werden - {e2}")
+                    f"Kritischer Fehler: Datei {pdf_path} konnte nicht verschoben werden - {e2}"
+                )
 
     def generate_filename_with_openai(self, images: list[str]) -> str:
         prompt = (
