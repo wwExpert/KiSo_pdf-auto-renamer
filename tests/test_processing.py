@@ -1,9 +1,10 @@
-import os
+import sys
 from pathlib import Path
 from unittest import mock
 import fitz
 
-from pdf_renamer import FileHandler
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from pdf_renamer import FileHandler, convert_pdf_to_images
 
 
 def create_dummy_pdf(path: Path) -> None:
@@ -28,3 +29,15 @@ def test_process_existing_pdfs(tmp_path):
         handler.executor.shutdown(wait=True)
 
     assert (output_dir / "test_doc.pdf").exists()
+
+
+def test_convert_pdf_respects_max_pages(tmp_path):
+    pdf_path = tmp_path / "multi.pdf"
+    doc = fitz.open()
+    for _ in range(3):
+        doc.new_page()
+    doc.save(str(pdf_path))
+    doc.close()
+
+    images = convert_pdf_to_images(str(pdf_path), max_pages=2)
+    assert len(images) == 2

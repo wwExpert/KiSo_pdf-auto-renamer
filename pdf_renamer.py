@@ -15,8 +15,20 @@ from openai import OpenAI
 
 
 load_dotenv()
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
+MAX_PAGES = int(os.getenv("MAX_PAGES", "4"))
+_openai_client: OpenAI | None = None
+
+
+def get_openai_client() -> OpenAI:
+    """Create an OpenAI client lazily to avoid import side effects."""
+    global _openai_client
+    if _openai_client is None:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY not set")
+        _openai_client = OpenAI(api_key=api_key)
+    return _openai_client
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -39,11 +51,13 @@ def wait_for_file_ready(
     return False
 
 
-def convert_pdf_to_images(pdf_path: str) -> list[str]:
-    """Konvertiert alle Seiten eines PDFs in Base64-kodierte JPEG-Bilder."""
-    images = []
+def convert_pdf_to_images(pdf_path: str, max_pages: int | None = None) -> list[str]:
+    """Konvertiert Seiten eines PDFs in Base64-kodierte JPEG-Bilder."""
+    images: list[str] = []
     with fitz.open(pdf_path) as doc:
-        for page in doc:
+        for i, page in enumerate(doc):
+            if max_pages is not None and i >= max_pages:
+                break
             pix = page.get_pixmap()
             img_bytes = pix.tobytes("jpeg")
             images.append(base64.b64encode(img_bytes).decode("utf-8"))
@@ -79,7 +93,7 @@ class FileHandler(FileSystemEventHandler):
         try:
             if not wait_for_file_ready(pdf_path):
                 raise FileNotFoundError(f"File {pdf_path} is not ready for processing.")
-            images = convert_pdf_to_images(pdf_path)
+            images = convert_pdf_to_images(pdf_path, max_pages=MAX_PAGES)
             filename = self.generate_filename_with_openai(images)
             new_name = f"{filename}.pdf"
             new_path = os.path.join(self.output_dir, new_name)
@@ -117,7 +131,8 @@ class FileHandler(FileSystemEventHandler):
             data_uri = f"data:image/jpeg;base64,{img}"
             content.append({"type": "image_url", "image_url": {"url": data_uri}})
         try:
-            response = openai_client.chat.completions.create(
+            client = get_openai_client()
+            response = client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=[{"role": "user", "content": content}],
                 max_tokens=100,
